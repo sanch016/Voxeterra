@@ -1,0 +1,13 @@
+build/
+_deps/
+*.exe
+*.obj
+*.lib
+*.pdb
+*.ilk
+*.exp
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+stdout.txt
+stderr.txt
