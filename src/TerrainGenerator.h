@@ -5,37 +5,37 @@
 
 struct TerrainParams {
     int   seed            = 12345;
-    int   seaLevel        = 6;
+    int   seaLevel        = 20;
     int   bedrockDepth    = 2;
-    int   dirtDepth       = 3;
-    int   minTerrainHeight = 2;
-    int   maxTerrainHeight = 50;
+    int   dirtDepth       = 8;
+    int   minTerrainHeight = 5;
+    int   maxTerrainHeight = 300;
 
-    float continentalFreq = 0.005f;
-    int   continentalOctaves = 5;
+    float continentalFreq = 0.001f;
+    int   continentalOctaves = 6;
     float continentalWeight = 0.7f;
 
-    float erosionFreq    = 0.008f;
-    int   erosionOctaves = 4;
+    float erosionFreq    = 0.002f;
+    int   erosionOctaves = 5;
     float erosionWeight  = 0.5f;
 
-    float peaksFreq      = 0.03f;
-    int   peaksOctaves   = 3;
-    float peaksWeight    = 0.4f;
+    float peaksFreq      = 0.008f;
+    int   peaksOctaves   = 5;
+    float peaksWeight    = 0.5f;
 
-    float temperatureFreq = 0.003f;
-    int   temperatureOctaves = 3;
+    float temperatureFreq = 0.001f;
+    int   temperatureOctaves = 4;
 
-    float moistureFreq   = 0.004f;
-    int   moistureOctaves = 3;
+    float moistureFreq   = 0.001f;
+    int   moistureOctaves = 4;
 
-    float caveFreq       = 0.04f;
-    float caveThreshold  = 0.62f;
+    float caveFreq       = 0.012f;
+    float caveThreshold  = 0.58f;
     bool  cavesEnabled   = true;
 
     float oreFreq        = 0.08f;
 
-    float snowLine       = 40.0f;
+    float snowLine       = 150.0f;
     float desertMaxTemp  = 0.3f;
     float desertMinMoist = 0.5f;
 

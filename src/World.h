@@ -59,7 +59,7 @@ private:
     void rebuildRenderList();
 
     int m_chunksPerFrame = 32;
-    int m_verticalRange = 4;
+    int m_verticalRange = 8;
     std::vector<ChunkKey> m_pendingChunks;
 
     std::map<ChunkKey, std::unique_ptr<Chunk>> m_chunks;
