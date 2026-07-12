@@ -151,8 +151,8 @@ int main() {
     Material chunkMaterial = LoadMaterialDefault();
     chunkMaterial.shader = chunkShader;
 
-    FPSCamera camera(glm::vec3(0.0f, 200.0f, 0.0f));
-    Player player(glm::vec3(0.0f, 200.0f, 0.0f));
+    FPSCamera camera(glm::vec3(0.0f, 100.0f, 0.0f));
+    Player player(glm::vec3(0.0f, 100.0f, 0.0f));
     World world(4);
 
     bool showUI = false;
