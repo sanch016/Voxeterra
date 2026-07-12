@@ -15,6 +15,8 @@ public:
     glm::vec3 getPosition()    const { return m_position; }
     glm::vec3 getEyePosition() const { return m_position + glm::vec3(0.0f, m_eyeHeight, 0.0f); }
     bool      isGrounded()     const { return m_grounded; }
+    bool      isFlying()       const { return m_flying; }
+    void      toggleFlying()         { m_flying = !m_flying; }
 
     struct AABB {
         glm::vec3 min;
@@ -39,4 +41,5 @@ private:
     float m_gravity      = 22.0f * BLOCK_SIZE;
 
     bool m_grounded = false;
+    bool m_flying = true;
 };

@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 
+#include <array>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -23,6 +24,7 @@ public:
 
     void update(glm::vec3 cameraPos);
     BlockType getBlock(int worldX, int worldY, int worldZ) const;
+    void setBlock(int worldX, int worldY, int worldZ, BlockType type);
     const std::vector<Chunk*>& getChunksToRender() const { return m_renderList; }
     size_t getPendingCount() const { return m_pendingChunks.size(); }
     size_t getWithoutMeshCount() const { return m_chunksWithoutMesh.size(); }
@@ -37,6 +39,10 @@ public:
     void setChunksPerFrame(int cpf);
     void applyTerrainParams();
 
+    int getLodDistance(int lod) const { return m_lodDistances[lod]; }
+    void setLodDistance(int lod, int dist);
+    void getLodCounts(int counts[Chunk::NUM_LODS]) const;
+
 private:
     struct ChunkKey {
         int x, y, z;
@@ -47,20 +53,27 @@ private:
         }
     };
 
+    struct PendingEntry {
+        ChunkKey key;
+        int lodLevel = 0;
+    };
+
     struct MeshBuildResult {
         ChunkKey key;
         std::unique_ptr<Chunk> chunk;
     };
 
-    void loadChunksAround(int cx, int cy, int cz);
+    void fillPendingQueue(int cx, int cy, int cz);
     void processPendingChunks();
-    void buildReadyMeshes();
+    void buildReadyMeshes(int camCX, int camCY, int camCZ);
     void uploadReadyMeshes();
     void rebuildRenderList();
+    void evictDistantChunks(int camCX, int camCY, int camCZ);
+    void cleanupQueuedChunks();
 
     int m_chunksPerFrame = 32;
     int m_verticalRange = 8;
-    std::vector<ChunkKey> m_pendingChunks;
+    std::vector<PendingEntry> m_pendingChunks;
 
     std::map<ChunkKey, std::unique_ptr<Chunk>> m_chunks;
     std::map<ChunkKey, std::unique_ptr<Chunk>> m_chunksWithoutMesh;
@@ -76,6 +89,7 @@ private:
 
     ThreadPool m_threadPool;
     int m_renderDistance;
+    int m_lodDistances[Chunk::NUM_LODS] = {6, 14, 24, 40};
 
     TerrainParams m_terrainParams;
     TerrainGenerator m_terrainGen;
@@ -83,4 +97,6 @@ private:
     int m_lastCenterX = 0x7FFFFFFF;
     int m_lastCenterY = 0x7FFFFFFF;
     int m_lastCenterZ = 0x7FFFFFFF;
+
+    int m_framesSinceStart = 0;
 };

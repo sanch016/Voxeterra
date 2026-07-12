@@ -57,7 +57,7 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
 }
 
 void Chunk::setBlock(int x, int y, int z, BlockType type) {
-    if (!m_blocks) m_blocks = std::make_unique<std::array<BlockType, SIZE * SIZE * SIZE>>();
+    if (!m_blocks) m_blocks = std::make_shared<std::array<BlockType, SIZE * SIZE * SIZE>>();
     (*m_blocks)[x + y * SIZE + z * SIZE * SIZE] = type;
 }
 
@@ -77,23 +77,29 @@ void Chunk::clearBlocks() {
 
 // ── Terrain generation ────────────────────────────────────────
 
-void Chunk::generate(const TerrainGenerator& gen, int chunkX, int chunkY, int chunkZ) {
+void Chunk::generate(const TerrainGenerator& gen, int chunkX, int chunkY, int chunkZ, int lodLevel) {
     m_chunkX = chunkX;
     m_chunkY = chunkY;
     m_chunkZ = chunkZ;
 
-    m_blocks = std::make_unique<std::array<BlockType, SIZE * SIZE * SIZE>>();
+    if (lodLevel != m_lodLevel || (1 << lodLevel) != m_step) {
+        setLodLevel(lodLevel);
+    }
 
-    for (int x = 0; x < SIZE; ++x) {
-        for (int z = 0; z < SIZE; ++z) {
+    m_blocks = std::make_shared<std::array<BlockType, SIZE * SIZE * SIZE>>();
+    m_nonAirCount = 0;
+
+    for (int x = 0; x < SIZE; x += m_step) {
+        for (int z = 0; z < SIZE; z += m_step) {
             float worldX = static_cast<float>(chunkX * SIZE + x);
             float worldZ = static_cast<float>(chunkZ * SIZE + z);
 
-            for (int y = 0; y < SIZE; ++y) {
+            for (int y = 0; y < SIZE; y += m_step) {
                 int worldY = chunkY * SIZE + y;
                 BlockType type = gen.getBlock(worldX, static_cast<float>(worldY), worldZ);
                 if (type == BlockType::Air) continue;
                 setBlock(x, y, z, type);
+                m_nonAirCount++;
             }
         }
     }
@@ -109,27 +115,29 @@ float Chunk::calcVertexAO(int x, int y, int z, int face, int vertex) {
     int u = FACE_VERTEX_UV[face][vertex][0];
     int v = FACE_VERTEX_UV[face][vertex][1];
 
-    int t1x = FACE_TANGENT1[face][0];
-    int t1y = FACE_TANGENT1[face][1];
-    int t1z = FACE_TANGENT1[face][2];
+    int step = m_step;
 
-    int t2x = FACE_TANGENT2[face][0];
-    int t2y = FACE_TANGENT2[face][1];
-    int t2z = FACE_TANGENT2[face][2];
+    int t1x = FACE_TANGENT1[face][0] * step;
+    int t1y = FACE_TANGENT1[face][1] * step;
+    int t1z = FACE_TANGENT1[face][2] * step;
 
-    int sx = x + nx + u * t1x;
-    int sy = y + ny + u * t1y;
-    int sz = z + nz + u * t1z;
+    int t2x = FACE_TANGENT2[face][0] * step;
+    int t2y = FACE_TANGENT2[face][1] * step;
+    int t2z = FACE_TANGENT2[face][2] * step;
+
+    int sx = x + nx * step + u * t1x;
+    int sy = y + ny * step + u * t1y;
+    int sz = z + nz * step + u * t1z;
     bool side1 = isBlockSolid(getBlockSafe(sx, sy, sz));
 
-    int sx2 = x + nx + v * t2x;
-    int sy2 = y + ny + v * t2y;
-    int sz2 = z + nz + v * t2z;
+    int sx2 = x + nx * step + v * t2x;
+    int sy2 = y + ny * step + v * t2y;
+    int sz2 = z + nz * step + v * t2z;
     bool side2 = isBlockSolid(getBlockSafe(sx2, sy2, sz2));
 
-    int cx = x + nx + u * t1x + v * t2x;
-    int cy = y + ny + u * t1y + v * t2y;
-    int cz = z + nz + u * t1z + v * t2z;
+    int cx = x + nx * step + u * t1x + v * t2x;
+    int cy = y + ny * step + u * t1y + v * t2y;
+    int cz = z + nz * step + u * t1z + v * t2z;
     bool corner = isBlockSolid(getBlockSafe(cx, cy, cz));
 
     if (side1 && side2) return 0.0f;
@@ -138,13 +146,14 @@ float Chunk::calcVertexAO(int x, int y, int z, int face, int vertex) {
 
 void Chunk::addFace(int x, int y, int z, int face, const glm::vec3& color, const float ao[4]) {
     uint32_t base = static_cast<uint32_t>(m_vertices.size());
+    int step = m_step;
 
     for (int i = 0; i < 4; ++i) {
         VertexCPU v;
         v.position = glm::vec3(
-            (x + FACE_VERTICES[face][i][0]) * BLOCK_SIZE,
-            (y + FACE_VERTICES[face][i][1]) * BLOCK_SIZE,
-            (z + FACE_VERTICES[face][i][2]) * BLOCK_SIZE);
+            (x + FACE_VERTICES[face][i][0] * step) * BLOCK_SIZE,
+            (y + FACE_VERTICES[face][i][1] * step) * BLOCK_SIZE,
+            (z + FACE_VERTICES[face][i][2] * step) * BLOCK_SIZE);
         v.normal = glm::vec3(
             FACE_NORMALS[face][0],
             FACE_NORMALS[face][1],
@@ -164,14 +173,16 @@ void Chunk::buildMesh(std::function<BlockType(int, int, int)> blockQuery) {
     m_vertices.clear();
     m_indices.clear();
 
-    static constexpr size_t MAX_VERTICES = 60000;
+    static constexpr size_t MAX_VERTICES = 65000;
     m_vertices.reserve(MAX_VERTICES + 4);
     m_indices.reserve(MAX_VERTICES * 6);
     bool hitLimit = false;
 
-    for (int x = 0; x < SIZE && !hitLimit; ++x) {
-        for (int y = 0; y < SIZE && !hitLimit; ++y) {
-            for (int z = 0; z < SIZE && !hitLimit; ++z) {
+    int step = m_step;
+
+    for (int x = 0; x < SIZE && !hitLimit; x += step) {
+        for (int y = 0; y < SIZE && !hitLimit; y += step) {
+            for (int z = 0; z < SIZE && !hitLimit; z += step) {
                 BlockType block = getBlock(x, y, z);
                 if (block == BlockType::Air) continue;
 
@@ -183,9 +194,9 @@ void Chunk::buildMesh(std::function<BlockType(int, int, int)> blockQuery) {
                         break;
                     }
 
-                    int nx = x + FACE_NORMALS[face][0];
-                    int ny = y + FACE_NORMALS[face][1];
-                    int nz = z + FACE_NORMALS[face][2];
+                    int nx = x + step * FACE_NORMALS[face][0];
+                    int ny = y + step * FACE_NORMALS[face][1];
+                    int nz = z + step * FACE_NORMALS[face][2];
 
                     if (!isBlockSolid(getBlockSafe(nx, ny, nz))) {
                         float ao[4];

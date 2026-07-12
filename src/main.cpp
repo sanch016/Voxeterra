@@ -11,9 +11,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <fstream>
+#include <limits>
 
 static std::ofstream g_log;
 
@@ -118,6 +120,69 @@ struct Frustum {
     }
 };
 
+static const int FACE_NORMALS[6][3] = {
+    {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}
+};
+
+static bool traceBlock(const glm::vec3& origin, const glm::vec3& dir, float maxDist,
+                       int& hitX, int& hitY, int& hitZ, int& hitFace,
+                       const World& world) {
+    float x = origin.x / BLOCK_SIZE;
+    float y = origin.y / BLOCK_SIZE;
+    float z = origin.z / BLOCK_SIZE;
+
+    float dx = dir.x, dy = dir.y, dz = dir.z;
+
+    int stepX = dx > 0 ? 1 : -1;
+    int stepY = dy > 0 ? 1 : -1;
+    int stepZ = dz > 0 ? 1 : -1;
+
+    float tMaxX = (dx != 0) ? (((stepX > 0 ? std::floor(x + 1) : std::floor(x)) - x) / dx) : std::numeric_limits<float>::max();
+    float tMaxY = (dy != 0) ? (((stepY > 0 ? std::floor(y + 1) : std::floor(y)) - y) / dy) : std::numeric_limits<float>::max();
+    float tMaxZ = (dz != 0) ? (((stepZ > 0 ? std::floor(z + 1) : std::floor(z)) - z) / dz) : std::numeric_limits<float>::max();
+
+    float tDeltaX = (dx != 0) ? (1.0f / std::abs(dx)) : std::numeric_limits<float>::max();
+    float tDeltaY = (dy != 0) ? (1.0f / std::abs(dy)) : std::numeric_limits<float>::max();
+    float tDeltaZ = (dz != 0) ? (1.0f / std::abs(dz)) : std::numeric_limits<float>::max();
+
+    int bx = static_cast<int>(std::floor(x));
+    int by = static_cast<int>(std::floor(y));
+    int bz = static_cast<int>(std::floor(z));
+
+    int face = 0;
+    float maxT = maxDist / BLOCK_SIZE;
+
+    for (int i = 0; i < 800; ++i) {
+        BlockType block = world.getBlock(bx, by, bz);
+        if (isBlockSolid(block)) {
+            hitX = bx; hitY = by; hitZ = bz; hitFace = face;
+            return true;
+        }
+        if (tMaxX < tMaxY) {
+            if (tMaxX < tMaxZ) {
+                if (tMaxX > maxT) return false;
+                bx += stepX; tMaxX += tDeltaX;
+                face = stepX > 0 ? 1 : 0;
+            } else {
+                if (tMaxZ > maxT) return false;
+                bz += stepZ; tMaxZ += tDeltaZ;
+                face = stepZ > 0 ? 5 : 4;
+            }
+        } else {
+            if (tMaxY < tMaxZ) {
+                if (tMaxY > maxT) return false;
+                by += stepY; tMaxY += tDeltaY;
+                face = stepY > 0 ? 3 : 2;
+            } else {
+                if (tMaxZ > maxT) return false;
+                bz += stepZ; tMaxZ += tDeltaZ;
+                face = stepZ > 0 ? 5 : 4;
+            }
+        }
+    }
+    return false;
+}
+
 int main() {
     g_log.open("debug_log.txt");
     LOG("=== Starting Voxeterra (raylib) ===");
@@ -158,8 +223,15 @@ int main() {
     bool showUI = false;
     TerrainParams& tp = world.terrainParams();
 
+    int selectedBlock = static_cast<int>(BlockType::Dirt);
+    int targetBlockX = 0, targetBlockY = 0, targetBlockZ = 0, targetFace = 0;
+    bool hasTarget = false;
+    float breakTimer = 0.0f;
+    bool prevLeftDown = false, prevRightDown = false;
+
     LOG("=== Voxeterra Engine initialized ===");
     LOG("Controls: WASD + Space(up) + Ctrl(down) + Shift(sprint) + Mouse + Tab(UI)");
+    LOG("F = flight toggle | Left-click = break | Right-click = place | 1-7 = block type");
 
     auto lastTime = std::chrono::high_resolution_clock::now();
     int frameCount = 0;
@@ -180,12 +252,55 @@ int main() {
             camera.processMouse(mouseDelta.x, -mouseDelta.y);
         }
 
+        if (IsKeyPressed(KEY_F)) {
+            player.toggleFlying();
+        }
+
         camera.processKeyboard(deltaTime);
         player.processInput(deltaTime, camera.getYaw());
         player.update(deltaTime, world);
         camera.setPosition(player.getEyePosition());
 
         world.update(player.getPosition());
+
+        // ── Block picking, breaking, placing ──
+        hasTarget = false;
+        if (!showUI) {
+            glm::vec3 camPos3 = camera.getPosition();
+            glm::vec3 front = camera.getFront();
+
+            int bx, by, bz, face;
+            if (traceBlock(camPos3, front, 200.0f, bx, by, bz, face, world)) {
+                hasTarget = true;
+                targetBlockX = bx; targetBlockY = by; targetBlockZ = bz; targetFace = face;
+
+                bool leftDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+                bool rightDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+
+                if (leftDown && !prevLeftDown) {
+                    world.setBlock(bx, by, bz, BlockType::Air);
+                }
+                if (rightDown && !prevRightDown) {
+                    int placeX = bx + FACE_NORMALS[face][0];
+                    int placeY = by + FACE_NORMALS[face][1];
+                    int placeZ = bz + FACE_NORMALS[face][2];
+                    BlockType placeType = static_cast<BlockType>(selectedBlock);
+                    if (placeType != BlockType::Air && isBlockSolid(placeType)) {
+                        world.setBlock(placeX, placeY, placeZ, placeType);
+                    }
+                }
+
+                prevLeftDown = leftDown;
+                prevRightDown = rightDown;
+            }
+
+            // Hotbar selection
+            for (int k = KEY_ONE; k <= KEY_SEVEN; ++k) {
+                if (IsKeyPressed(k)) {
+                    selectedBlock = k - KEY_ONE + 1;
+                }
+            }
+        }
 
         if (frameCount % 120 == 0) {
             auto p = player.getPosition();
@@ -236,9 +351,29 @@ int main() {
                 DrawMesh(chunk->getMesh(), chunkMaterial, model);
             }
 
+            // ── Block highlight ──
+            if (hasTarget) {
+                Vector3 center = {
+                    (targetBlockX + 0.5f) * BLOCK_SIZE,
+                    (targetBlockY + 0.5f) * BLOCK_SIZE,
+                    (targetBlockZ + 0.5f) * BLOCK_SIZE
+                };
+                DrawCubeWires(center, BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, {0, 0, 0, 180});
+            }
+
             EndMode3D();
 
             DrawFPS(10, 10);
+
+            // ── Hotbar ──
+            if (!showUI) {
+                const char* blockNames[] = {"Air","Grass","Dirt","Stone","Sand","Wood","Snow","Brick"};
+                const char* blockName = (selectedBlock >= 1 && selectedBlock <= 7)
+                    ? blockNames[selectedBlock] : "?";
+                DrawText(TextFormat("[F] %s | [%d] %s | LMB=break | RMB=place",
+                    player.isFlying() ? "FLY" : "WALK", selectedBlock, blockName),
+                    10, 35, 14, WHITE);
+            }
 
             if (showUI) {
                 int panelX = 10, panelY = 10;
@@ -248,7 +383,7 @@ int main() {
                 int sliderW = 180;
                 int py = panelY;
 
-                int totalLines = 3 + 5 + 1 + 6 + 1 + 3 + 1 + 5 + 1 + 8;
+                int totalLines = 5 + 1 + 6 + 1 + 6 + 1 + 7 + 1 + 4 + 1 + 5 + 1 + 9;
                 int panelH = totalLines * lineH + 20;
                 DrawRectangle(panelX - 4, panelY - 4, panelW + 8, panelH + 8, {0, 0, 0, 180});
 
@@ -320,6 +455,16 @@ int main() {
                 }
 
                 py += 4;
+                DrawText("=== LOD ===", panelX, py, 14, YELLOW);
+                py += lineH;
+                for (int i = 0; i < Chunk::NUM_LODS; ++i) {
+                    int lodDist = world.getLodDistance(i);
+                    if (sliderI(TextFormat("LOD%d Dist", i), lodDist, 2, 80, 1)) {
+                        world.setLodDistance(i, lodDist);
+                    }
+                }
+
+                py += 4;
                 DrawText("=== HEIGHT ===", panelX, py, 14, YELLOW);
                 py += lineH;
                 terrainDirty |= sliderI("Sea Level", tp.seaLevel, 0, 20, 1);
@@ -356,8 +501,16 @@ int main() {
                 py += 4;
                 DrawText("=== STATS ===", panelX, py, 14, YELLOW);
                 py += lineH;
-                DrawText(TextFormat("Chunks: %d", (int)world.getMeshedCount()), panelX, py, 14, LIGHTGRAY);
+                int lodCounts[Chunk::NUM_LODS];
+                world.getLodCounts(lodCounts);
+                int totalChunks = 0;
+                for (int i = 0; i < Chunk::NUM_LODS; ++i) totalChunks += lodCounts[i];
+                DrawText(TextFormat("Chunks: %d", totalChunks), panelX, py, 14, LIGHTGRAY);
                 py += lineH;
+                for (int i = 0; i < Chunk::NUM_LODS; ++i) {
+                    DrawText(TextFormat("  LOD%d: %d", i, lodCounts[i]), panelX, py, 14, LIGHTGRAY);
+                    py += lineH;
+                }
                 DrawText(TextFormat("Pending: %d", (int)world.getPendingCount()), panelX, py, 14, LIGHTGRAY);
                 py += lineH;
                 DrawText(TextFormat("NoMesh: %d", (int)world.getWithoutMeshCount()), panelX, py, 14, LIGHTGRAY);

@@ -29,8 +29,10 @@ void Player::processInput(float deltaTime, float cameraYaw) {
     if (IsKeyDown(KEY_A)) moveDir -= right;
     if (IsKeyDown(KEY_D)) moveDir += right;
 
-    if (IsKeyDown(KEY_SPACE))          moveDir += glm::vec3(0.0f, 1.0f, 0.0f);
-    if (IsKeyDown(KEY_LEFT_CONTROL))   moveDir += glm::vec3(0.0f, -1.0f, 0.0f);
+    if (m_flying) {
+        if (IsKeyDown(KEY_SPACE))          moveDir += glm::vec3(0.0f, 1.0f, 0.0f);
+        if (IsKeyDown(KEY_LEFT_CONTROL))   moveDir += glm::vec3(0.0f, -1.0f, 0.0f);
+    }
 
     if (glm::length(moveDir) > 0.001f) {
         moveDir = glm::normalize(moveDir);
@@ -38,7 +40,12 @@ void Player::processInput(float deltaTime, float cameraYaw) {
 
     float speed = IsKeyDown(KEY_LEFT_SHIFT) ? m_sprintSpeed : m_moveSpeed;
 
-    m_velocity = moveDir * speed;
+    if (m_flying) {
+        m_velocity = moveDir * speed;
+    } else {
+        m_velocity.x = moveDir.x * speed;
+        m_velocity.z = moveDir.z * speed;
+    }
 }
 
 static bool hasCollision(const World& world, const Player::AABB& box) {
@@ -68,7 +75,30 @@ static bool hasCollision(const World& world, const Player::AABB& box) {
 void Player::update(float deltaTime, const World& world) {
     if (deltaTime > 0.05f) deltaTime = 0.05f;
 
-    m_position += m_velocity * deltaTime;
+    if (m_flying) {
+        m_position += m_velocity * deltaTime;
+    } else {
+        m_grounded = false;
+        m_velocity.y -= m_gravity * deltaTime;
+
+        glm::vec3 oldPos = m_position;
+        m_position.x += m_velocity.x * deltaTime;
+        resolveCollisionsAxis(world, 0);
+
+        m_position.y += m_velocity.y * deltaTime;
+        resolveCollisionsAxis(world, 1);
+        if (std::abs(m_velocity.y) < 0.001f && oldPos.y == m_position.y) {
+            m_grounded = true;
+        }
+
+        m_position.z += m_velocity.z * deltaTime;
+        resolveCollisionsAxis(world, 2);
+
+        if (m_grounded && IsKeyPressed(KEY_SPACE)) {
+            m_velocity.y = m_jumpVelocity;
+            m_grounded = false;
+        }
+    }
 }
 
 void Player::resolveCollisionsAxis(const World& world, int axis) {
