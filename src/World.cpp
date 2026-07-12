@@ -264,25 +264,6 @@ void World::processPendingChunks() {
 
         m_threadPool.enqueue([this, key, genCopy, lod]() {
             auto chunk = std::make_unique<Chunk>();
-
-            // ── Quick surface-height check: skip if entirely above terrain ──
-            if (lod == 0) {
-                int chunkMinY = key.y * Chunk::SIZE;
-                int maxSurface = -999;
-                for (int sx : {0, Chunk::SIZE / 2, Chunk::SIZE - 1}) {
-                    for (int sz : {0, Chunk::SIZE / 2, Chunk::SIZE - 1}) {
-                        auto col = genCopy.sampleColumn(
-                            static_cast<float>(key.x * Chunk::SIZE + sx),
-                            static_cast<float>(key.z * Chunk::SIZE + sz));
-                        if (col.surfaceHeight > maxSurface)
-                            maxSurface = col.surfaceHeight;
-                    }
-                }
-                if (chunkMinY > maxSurface + 8) {
-                    return; // entirely above max surface — all Air, skip
-                }
-            }
-
             chunk->generate(genCopy, key.x, key.y, key.z, lod);
 
             std::lock_guard lock(m_chunksMutex);

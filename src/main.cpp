@@ -383,7 +383,7 @@ int main() {
                 int sliderW = 180;
                 int py = panelY;
 
-                int totalLines = 5 + 1 + 6 + 1 + 6 + 1 + 7 + 1 + 4 + 1 + 5 + 1 + 9;
+                int totalLines = 5 + 1 + 6 + 1 + 5 + 1 + 7 + 1 + 4 + 1 + 4 + 1 + 9;
                 int panelH = totalLines * lineH + 20;
                 DrawRectangle(panelX - 4, panelY - 4, panelW + 8, panelH + 8, {0, 0, 0, 180});
 
@@ -467,35 +467,33 @@ int main() {
                 py += 4;
                 DrawText("=== HEIGHT ===", panelX, py, 14, YELLOW);
                 py += lineH;
-                terrainDirty |= sliderI("Sea Level", tp.seaLevel, 0, 20, 1);
-                terrainDirty |= sliderI("Min Height", tp.minTerrainHeight, 0, 30, 1);
-                terrainDirty |= sliderI("Max Height", tp.maxTerrainHeight, 10, 80, 2);
-                terrainDirty |= sliderI("Dirt Depth", tp.dirtDepth, 1, 8, 1);
+                terrainDirty |= sliderI("Sea Level", tp.seaLevel, 10, 50, 1);
+                terrainDirty |= sliderI("Dirt Depth", tp.dirtDepth, 1, 10, 1);
                 terrainDirty |= sliderI("Bedrock D", tp.bedrockDepth, 0, 5, 1);
+                terrainDirty |= sliderF("Detail Amp", tp.detailAmp, 0.0f, 5.0f, 0.1f);
 
                 py += 4;
                 DrawText("=== NOISE ===", panelX, py, 14, YELLOW);
                 py += lineH;
-                terrainDirty |= sliderF("Cont. Freq", tp.continentalFreq, 0.001f, 0.02f, 0.001f);
+                terrainDirty |= sliderF("Cont. Freq", tp.continentalFreq, 0.0003f, 0.005f, 0.0002f);
                 terrainDirty |= sliderF("Cont. Weight", tp.continentalWeight, 0.0f, 1.0f, 0.05f);
-                terrainDirty |= sliderF("Eros. Freq", tp.erosionFreq, 0.001f, 0.03f, 0.001f);
+                terrainDirty |= sliderF("Eros. Freq", tp.erosionFreq, 0.0005f, 0.01f, 0.0005f);
                 terrainDirty |= sliderF("Eros. Weight", tp.erosionWeight, 0.0f, 1.0f, 0.05f);
-                terrainDirty |= sliderF("Peaks Freq", tp.peaksFreq, 0.005f, 0.1f, 0.005f);
+                terrainDirty |= sliderF("Peaks Freq", tp.peaksFreq, 0.002f, 0.03f, 0.002f);
                 terrainDirty |= sliderF("Peaks Weight", tp.peaksWeight, 0.0f, 1.0f, 0.05f);
 
                 py += 4;
-                DrawText("=== BIOME ===", panelX, py, 14, YELLOW);
+                DrawText("=== CLIMATE ===", panelX, py, 14, YELLOW);
                 py += lineH;
-                terrainDirty |= sliderF("Temp Freq", tp.temperatureFreq, 0.001f, 0.01f, 0.001f);
-                terrainDirty |= sliderF("Moist Freq", tp.moistureFreq, 0.001f, 0.02f, 0.001f);
-                terrainDirty |= sliderF("Snow Line", tp.snowLine, 20.0f, 60.0f, 2.0f);
+                terrainDirty |= sliderF("Temp Freq", tp.tempFreq, 0.0003f, 0.005f, 0.0002f);
+                terrainDirty |= sliderF("Moist Freq", tp.moistFreq, 0.0003f, 0.005f, 0.0002f);
+                terrainDirty |= sliderF("Detail Freq", tp.detailFreq, 0.005f, 0.1f, 0.005f);
 
                 py += 4;
-                DrawText("=== CAVES / DETAIL ===", panelX, py, 14, YELLOW);
+                DrawText("=== CAVES ===", panelX, py, 14, YELLOW);
                 py += lineH;
-                terrainDirty |= sliderF("Cave Freq", tp.caveFreq, 0.01f, 0.1f, 0.005f);
+                terrainDirty |= sliderF("Cave Freq", tp.caveFreq, 0.005f, 0.05f, 0.002f);
                 terrainDirty |= sliderF("Cave Thresh", tp.caveThreshold, 0.4f, 0.8f, 0.02f);
-                terrainDirty |= sliderF("Beach Range", tp.beachRange, 0.0f, 5.0f, 0.5f);
                 terrainDirty |= sliderF("Ore Freq", tp.oreFreq, 0.01f, 0.2f, 0.005f);
 
                 py += 4;

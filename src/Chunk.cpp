@@ -188,6 +188,22 @@ void Chunk::buildMesh(std::function<BlockType(int, int, int)> blockQuery) {
 
                 glm::vec3 color = getBlockColor(block);
 
+                if (block == BlockType::Water) {
+                    // Water: only the surface (topmost block) renders its top face
+                    int face = 2;
+                    if (m_vertices.size() + 4 > MAX_VERTICES) {
+                        hitLimit = true;
+                        break;
+                    }
+                    int ny = y + step * FACE_NORMALS[face][1];
+                    BlockType above = getBlockSafe(x, ny, z);
+                    if (above == BlockType::Water) continue; // covered by water above
+                    if (isBlockSolid(above)) continue;       // covered by solid above
+                    float ao[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+                    addFace(x, y, z, face, color, ao);
+                    continue;
+                }
+
                 for (int face = 0; face < 6; ++face) {
                     if (m_vertices.size() + 4 > MAX_VERTICES) {
                         hitLimit = true;
