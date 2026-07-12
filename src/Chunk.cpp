@@ -204,48 +204,52 @@ void Chunk::buildMesh(std::function<BlockType(int, int, int)> blockQuery) {
 
 void Chunk::uploadToGPU() {
     if (m_vertices.empty()) return;
+    uploadFromData(std::move(m_vertices), std::move(m_indices));
+    m_vertices.clear();
+    m_vertices.shrink_to_fit();
+    m_indices.clear();
+    m_indices.shrink_to_fit();
+}
 
-    int vertCount = static_cast<int>(m_vertices.size());
+void Chunk::uploadFromData(std::vector<VertexCPU> verts, std::vector<uint32_t> indices) {
+    if (verts.empty()) return;
+
+    int vertCount = static_cast<int>(verts.size());
 
     m_mesh.vertexCount = vertCount;
-    m_mesh.triangleCount = static_cast<int>(m_indices.size() / 3);
+    m_mesh.triangleCount = static_cast<int>(indices.size() / 3);
 
     m_mesh.vertices = (float*)RL_MALLOC(vertCount * 3 * sizeof(float));
     m_mesh.normals = (float*)RL_MALLOC(vertCount * 3 * sizeof(float));
     m_mesh.texcoords = (float*)RL_MALLOC(vertCount * 2 * sizeof(float));
     m_mesh.colors = (unsigned char*)RL_MALLOC(vertCount * 4 * sizeof(unsigned char));
-    m_mesh.indices = (unsigned short*)RL_MALLOC(m_indices.size() * sizeof(unsigned short));
+    m_mesh.indices = (unsigned short*)RL_MALLOC(indices.size() * sizeof(unsigned short));
 
     for (int i = 0; i < vertCount; ++i) {
-        m_mesh.vertices[i * 3 + 0] = m_vertices[i].position.x;
-        m_mesh.vertices[i * 3 + 1] = m_vertices[i].position.y;
-        m_mesh.vertices[i * 3 + 2] = m_vertices[i].position.z;
+        m_mesh.vertices[i * 3 + 0] = verts[i].position.x;
+        m_mesh.vertices[i * 3 + 1] = verts[i].position.y;
+        m_mesh.vertices[i * 3 + 2] = verts[i].position.z;
 
-        m_mesh.normals[i * 3 + 0] = m_vertices[i].normal.x;
-        m_mesh.normals[i * 3 + 1] = m_vertices[i].normal.y;
-        m_mesh.normals[i * 3 + 2] = m_vertices[i].normal.z;
+        m_mesh.normals[i * 3 + 0] = verts[i].normal.x;
+        m_mesh.normals[i * 3 + 1] = verts[i].normal.y;
+        m_mesh.normals[i * 3 + 2] = verts[i].normal.z;
 
         m_mesh.texcoords[i * 2 + 0] = 0.0f;
         m_mesh.texcoords[i * 2 + 1] = 0.0f;
 
-        float ao = m_vertices[i].ao;
-        m_mesh.colors[i * 4 + 0] = (unsigned char)(m_vertices[i].color.x * ao * 255.0f);
-        m_mesh.colors[i * 4 + 1] = (unsigned char)(m_vertices[i].color.y * ao * 255.0f);
-        m_mesh.colors[i * 4 + 2] = (unsigned char)(m_vertices[i].color.z * ao * 255.0f);
+        float ao = verts[i].ao;
+        m_mesh.colors[i * 4 + 0] = (unsigned char)(verts[i].color.x * ao * 255.0f);
+        m_mesh.colors[i * 4 + 1] = (unsigned char)(verts[i].color.y * ao * 255.0f);
+        m_mesh.colors[i * 4 + 2] = (unsigned char)(verts[i].color.z * ao * 255.0f);
         m_mesh.colors[i * 4 + 3] = 255;
     }
 
-    for (size_t i = 0; i < m_indices.size(); ++i) {
-        m_mesh.indices[i] = static_cast<unsigned short>(m_indices[i]);
+    for (size_t i = 0; i < indices.size(); ++i) {
+        m_mesh.indices[i] = static_cast<unsigned short>(indices[i]);
     }
 
     UploadMesh(&m_mesh, false);
     m_hasMesh = true;
-
-    m_vertices.clear();
-    m_vertices.shrink_to_fit();
-    m_indices.clear();
-    m_indices.shrink_to_fit();
 }
 
 void Chunk::unloadGPU() {

@@ -47,9 +47,15 @@ private:
         }
     };
 
+    struct MeshBuildResult {
+        ChunkKey key;
+        std::unique_ptr<Chunk> chunk;
+    };
+
     void loadChunksAround(int cx, int cy, int cz);
     void processPendingChunks();
     void buildReadyMeshes();
+    void uploadReadyMeshes();
     void rebuildRenderList();
 
     int m_chunksPerFrame = 32;
@@ -64,6 +70,9 @@ private:
     std::mutex m_queuedMutex;
 
     std::vector<Chunk*> m_renderList;
+
+    std::vector<MeshBuildResult> m_uploadQueue;
+    std::mutex m_uploadMutex;
 
     ThreadPool m_threadPool;
     int m_renderDistance;

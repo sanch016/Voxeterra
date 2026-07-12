@@ -41,6 +41,15 @@ public:
     bool  hasMesh() const { return m_hasMesh; }
     bool  hasBlocks() const { return m_blocks != nullptr; }
 
+    std::shared_ptr<std::array<BlockType, SIZE * SIZE * SIZE>> shareBlocks() const {
+        if (!m_blocks) return nullptr;
+        return std::make_shared<std::array<BlockType, SIZE * SIZE * SIZE>>(*m_blocks);
+    }
+
+    std::vector<VertexCPU> takeVertices() { return std::move(m_vertices); }
+    std::vector<uint32_t>  takeIndices() { return std::move(m_indices); }
+    void uploadFromData(std::vector<VertexCPU> verts, std::vector<uint32_t> indices);
+
     int getChunkX() const { return m_chunkX; }
     int getChunkY() const { return m_chunkY; }
     int getChunkZ() const { return m_chunkZ; }

@@ -32,6 +32,7 @@ BlockType World::getBlock(int worldX, int worldY, int worldZ) const {
 }
 
 void World::update(glm::vec3 cameraPos) {
+    uploadReadyMeshes();
     buildReadyMeshes();
 
     int camCX = static_cast<int>(std::floor(cameraPos.x / (Chunk::SIZE * BLOCK_SIZE)));
@@ -123,20 +124,24 @@ void World::buildReadyMeshes() {
 
     {
         std::lock_guard lock(m_chunksMutex);
+        int count = 0;
         for (auto& [key, chunk] : m_chunksWithoutMesh) {
+            if (count >= m_chunksPerFrame) break;
             bool ready = true;
-            for (auto [dx, dz] : std::vector<std::pair<int,int>>{{1,0},{-1,0},{0,1},{0,-1}}) {
-                ChunkKey nk{key.x + dx, key.y, key.z + dz};
+            for (auto [dx, dy, dz] : std::vector<std::tuple<int,int,int>>{{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0},{0,-1,0}}) {
+                ChunkKey nk{key.x + dx, key.y + dy, key.z + dz};
                 if (m_chunksWithoutMesh.count(nk) == 0 && m_chunks.count(nk) == 0) {
                     ready = false;
                     break;
                 }
             }
-            if (ready) readyKeys.push_back(key);
+            if (ready) {
+                readyKeys.push_back(key);
+                count++;
+            }
         }
     }
 
-    bool anyUploaded = false;
     for (auto& key : readyKeys) {
         std::unique_ptr<Chunk> chunk;
         {
@@ -147,52 +152,80 @@ void World::buildReadyMeshes() {
             m_chunksWithoutMesh.erase(it);
         }
 
-        chunk->buildMesh([this](int wx, int wy, int wz) -> BlockType {
-            int cx = static_cast<int>(std::floor(static_cast<float>(wx) / Chunk::SIZE));
-            int cy = static_cast<int>(std::floor(static_cast<float>(wy) / Chunk::SIZE));
-            int cz = static_cast<int>(std::floor(static_cast<float>(wz) / Chunk::SIZE));
-
+        using BlockArray = std::array<BlockType, Chunk::SIZE * Chunk::SIZE * Chunk::SIZE>;
+        std::map<ChunkKey, std::shared_ptr<BlockArray>> snaps;
+        {
             std::lock_guard lock(m_chunksMutex);
-            ChunkKey nk{cx, cy, cz};
-
-            auto it1 = m_chunks.find(nk);
-            if (it1 != m_chunks.end()) {
-                int lx = wx - cx * Chunk::SIZE;
-                int ly = wy - cy * Chunk::SIZE;
-                int lz = wz - cz * Chunk::SIZE;
-                return it1->second->getBlock(lx, ly, lz);
+            auto snapNeighbor = [&](int dx, int dy, int dz) {
+                ChunkKey nk{key.x + dx, key.y + dy, key.z + dz};
+                auto it1 = m_chunks.find(nk);
+                if (it1 != m_chunks.end() && it1->second->hasBlocks()) {
+                    snaps[nk] = it1->second->shareBlocks();
+                    return;
+                }
+                auto it2 = m_chunksWithoutMesh.find(nk);
+                if (it2 != m_chunksWithoutMesh.end() && it2->second->hasBlocks()) {
+                    snaps[nk] = it2->second->shareBlocks();
+                }
+            };
+            for (auto [dx, dy, dz] : std::vector<std::tuple<int,int,int>>{{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0},{0,-1,0}}) {
+                snapNeighbor(dx, dy, dz);
             }
+        }
 
-            auto it2 = m_chunksWithoutMesh.find(nk);
-            if (it2 != m_chunksWithoutMesh.end()) {
-                int lx = wx - cx * Chunk::SIZE;
-                int ly = wy - cy * Chunk::SIZE;
-                int lz = wz - cz * Chunk::SIZE;
-                return it2->second->getBlock(lx, ly, lz);
-            }
+        m_threadPool.enqueue([this, key, chunk = std::move(chunk), snaps = std::move(snaps)]() mutable {
+            int cx = key.x, cy = key.y, cz = key.z;
+            chunk->buildMesh([&snaps, cx, cy, cz](int wx, int wy, int wz) -> BlockType {
+                int bcx = static_cast<int>(std::floor(static_cast<float>(wx) / Chunk::SIZE));
+                int bcy = static_cast<int>(std::floor(static_cast<float>(wy) / Chunk::SIZE));
+                int bcz = static_cast<int>(std::floor(static_cast<float>(wz) / Chunk::SIZE));
 
-            return BlockType::Air;
+                ChunkKey nk{bcx, bcy, bcz};
+                auto it = snaps.find(nk);
+                if (it != snaps.end()) {
+                    int lx = wx - bcx * Chunk::SIZE;
+                    int ly = wy - bcy * Chunk::SIZE;
+                    int lz = wz - bcz * Chunk::SIZE;
+                    return (*it->second)[lx + ly * Chunk::SIZE + lz * Chunk::SIZE * Chunk::SIZE];
+                }
+                return BlockType::Air;
+            });
+
+            std::lock_guard lock(m_uploadMutex);
+            m_uploadQueue.push_back({key, std::move(chunk)});
         });
+    }
+}
 
-        chunk->uploadToGPU();
+void World::uploadReadyMeshes() {
+    std::vector<MeshBuildResult> results;
+    {
+        std::lock_guard lock(m_uploadMutex);
+        if (m_uploadQueue.empty()) return;
+        results = std::move(m_uploadQueue);
+    }
+
+    bool anyUploaded = false;
+    for (auto& res : results) {
+        res.chunk->uploadToGPU();
 
         {
             std::lock_guard lock(m_chunksMutex);
-            m_chunks[key] = std::move(chunk);
+            m_chunks[res.key] = std::move(res.chunk);
 
             auto tryFreeBlocks = [this](const ChunkKey& k) {
                 auto it = m_chunks.find(k);
                 if (it == m_chunks.end() || !it->second->hasBlocks()) return;
-                for (auto [dx, dz] : std::vector<std::pair<int,int>>{{1,0},{-1,0},{0,1},{0,-1}}) {
-                    ChunkKey nk{k.x + dx, k.y, k.z + dz};
+                for (auto [dx, dy, dz] : std::vector<std::tuple<int,int,int>>{{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0},{0,-1,0}}) {
+                    ChunkKey nk{k.x + dx, k.y + dy, k.z + dz};
                     if (m_chunks.count(nk) == 0) return;
                 }
                 it->second->clearBlocks();
             };
 
-            tryFreeBlocks(key);
-            for (auto [dx, dz] : std::vector<std::pair<int,int>>{{1,0},{-1,0},{0,1},{0,-1}}) {
-                tryFreeBlocks({key.x + dx, key.y, key.z + dz});
+            tryFreeBlocks(res.key);
+            for (auto [dx, dy, dz] : std::vector<std::tuple<int,int,int>>{{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0},{0,-1,0}}) {
+                tryFreeBlocks({res.key.x + dx, res.key.y + dy, res.key.z + dz});
             }
         }
         anyUploaded = true;
@@ -240,6 +273,11 @@ void World::applyTerrainParams() {
     m_chunks.clear();
     m_chunksWithoutMesh.clear();
     m_renderList.clear();
+
+    {
+        std::lock_guard ulock(m_uploadMutex);
+        m_uploadQueue.clear();
+    }
 
     std::lock_guard qlock(m_queuedMutex);
     m_queuedChunks.clear();

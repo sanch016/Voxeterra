@@ -2,7 +2,7 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <functional>
+#include <future>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -14,7 +14,7 @@ public:
         for (size_t i = 0; i < numThreads; ++i) {
             m_workers.emplace_back([this] {
                 while (true) {
-                    std::function<void()> task;
+                    std::packaged_task<void()> task;
                     {
                         std::unique_lock<std::mutex> lock(m_mutex);
                         m_condition.wait(lock, [this] {
@@ -54,7 +54,7 @@ public:
     void enqueue(F&& f) {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_tasks.emplace(std::forward<F>(f));
+            m_tasks.emplace(std::packaged_task<void()>(std::forward<F>(f)));
         }
         m_condition.notify_one();
     }
@@ -77,7 +77,7 @@ public:
 
 private:
     std::vector<std::thread>              m_workers;
-    std::queue<std::function<void()>>     m_tasks;
+    std::queue<std::packaged_task<void()>> m_tasks;
 
     mutable std::mutex                    m_mutex;
     std::condition_variable               m_condition;
