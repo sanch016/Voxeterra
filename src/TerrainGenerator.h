@@ -248,13 +248,13 @@ private:
         static const Point pts[] = {
             {0.00f,  3.f},
             {0.15f,  5.f},
-            {0.28f, 17.f},
-            {0.35f, 24.f},
-            {0.42f, 32.f},
-            {0.55f, 42.f},
-            {0.70f, 55.f},
-            {0.85f, 72.f},
-            {1.00f, 85.f},
+            {0.28f, 20.f},
+            {0.35f, 28.f},
+            {0.42f, 38.f},
+            {0.55f, 50.f},
+            {0.70f, 65.f},
+            {0.85f, 88.f},
+            {1.00f, 105.f},
         };
         constexpr int n = sizeof(pts) / sizeof(pts[0]);
 
@@ -274,8 +274,8 @@ private:
 
     float hillScale(float cn, float er) const {
         float cnHill = smoothstep(0.28f, 0.65f, cn);
-        float erEffect = 1.0f - 0.55f * er;
-        return cnHill * erEffect * 55.0f;
+        float erEffect = 1.0f - 0.50f * er;
+        return cnHill * erEffect * 70.0f;
     }
 
     float continentalness(float x, float z) const {
