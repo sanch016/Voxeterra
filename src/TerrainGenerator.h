@@ -28,16 +28,16 @@ struct BiomeDef {
 
 inline const BiomeDef BIOME_DEFS[] = {
     // type           baseH hScale hilliness surface sub   shore   shW snow
-    {BiomeType::DeepOcean,   5,  0.3f, 0.5f,  BlockType::Gravel, BlockType::Gravel, BlockType::Gravel, 0, 0.0f},
-    {BiomeType::Ocean,      20,  0.5f, 0.6f,  BlockType::Gravel, BlockType::Gravel, BlockType::Sand,   5, 0.0f},
-    {BiomeType::Beach,      25,  0.4f, 0.5f,  BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   3, 0.0f},
+    {BiomeType::DeepOcean,   3,  0.3f, 0.5f,  BlockType::Gravel, BlockType::Gravel, BlockType::Gravel, 0, 0.0f},
+    {BiomeType::Ocean,      17,  0.5f, 0.6f,  BlockType::Gravel, BlockType::Gravel, BlockType::Sand,   5, 0.0f},
+    {BiomeType::Beach,      23,  0.4f, 0.5f,  BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   3, 0.0f},
     {BiomeType::Plains,     28,  0.6f, 0.7f,  BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   3, 0.0f},
     {BiomeType::Desert,     30,  0.7f, 1.0f,  BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   2, 0.0f},
     {BiomeType::Forest,     32,  0.9f, 1.2f,  BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
     {BiomeType::DarkForest, 34,  1.0f, 1.4f,  BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
     {BiomeType::Taiga,      30,  0.8f, 1.0f,  BlockType::Grass,  BlockType::Dirt,   BlockType::Snow,   1, 0.4f},
     {BiomeType::SnowyPlains,30,  0.6f, 0.5f,  BlockType::Snow,   BlockType::Dirt,   BlockType::Snow,   2, 0.7f},
-    {BiomeType::Mountains,  45,  2.0f, 2.0f,  BlockType::Stone,  BlockType::Stone,  BlockType::Gravel, 4, 0.6f},
+    {BiomeType::Mountains,  52,  2.4f, 1.8f,  BlockType::Stone,  BlockType::Stone,  BlockType::Gravel, 4, 0.6f},
     {BiomeType::Swamp,      24,  0.4f, 0.4f,  BlockType::Grass,  BlockType::Dirt,   BlockType::Clay,   4, 0.0f},
     {BiomeType::Savanna,    28,  0.5f, 0.6f,  BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
     {BiomeType::Badlands,   40,  1.5f, 1.8f,  BlockType::Gravel, BlockType::Sand,   BlockType::Gravel, 6, 0.0f},
@@ -105,27 +105,35 @@ public:
         float moi = moisture(wx, wz);
         float det = detail(wx, wz);
 
+        float hill01;
         BiomeType biome = getBiomeAt(tmp, moi, cn);
-        const BiomeDef& def = BIOME_DEFS[(int)biome];
-
-        float baseH = static_cast<float>(def.baseHeight);
-        float hill01 = cn * 0.5f + (1.0f - er) * 0.3f + pk * 0.2f;
+        if (biome == BiomeType::Mountains || biome == BiomeType::Badlands) {
+            hill01 = cn * 0.35f + (1.0f - er) * 0.25f + pk * 0.40f;
+        } else {
+            hill01 = cn * 0.5f + (1.0f - er) * 0.3f + pk * 0.2f;
+        }
         hill01 = std::clamp(hill01, 0.0f, 1.0f);
-        float h = baseH + (hill01 - 0.5f) * def.heightScale * 30.0f * def.hilliness;
 
-        if (biome == BiomeType::Mountains) {
-            h += pk * 40.0f;
+        const BiomeDef& def = BIOME_DEFS[(int)biome];
+        float h = computeHeight(hill01, det, def);
+
+        // Biome blending: smooth ocean → beach → land transition
+        if (cn < 0.42f) {
+            BiomeType landBiome = getBiomeAt(tmp, moi, 0.5f);
+            float hLand = computeHeight(hill01, det, BIOME_DEFS[(int)landBiome]);
+            float t = std::clamp((cn - 0.28f) / 0.14f, 0.0f, 1.0f);
+            h = h * (1.0f - t) + hLand * t;
         }
 
-        int detailBump = static_cast<int>(det * m_params.detailAmp);
-        int height = std::max(1, static_cast<int>(h));
-        height += detailBump;
-
-        if (cn < 0.25f) {
-            height = static_cast<int>(m_params.seaLevel - 8.0f + cn * 25.0f);
-        }
-
+        int height = std::max(1, static_cast<int>(std::round(h)));
         return { height, tmp, moi, cn, er };
+    }
+
+    float computeHeight(float hill01, float det, const BiomeDef& def) const {
+        float h = static_cast<float>(def.baseHeight)
+                + hill01 * def.heightScale * 25.0f * def.hilliness;
+        h += det * m_params.detailAmp * (0.5f + 0.5f * def.hilliness);
+        return h;
     }
 
     BlockType getBlock(float wx, float wy, float wz) const {
