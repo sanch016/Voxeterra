@@ -476,11 +476,8 @@ int main() {
                 DrawText("=== NOISE ===", panelX, py, 14, YELLOW);
                 py += lineH;
                 terrainDirty |= sliderF("Cont. Freq", tp.continentalFreq, 0.0003f, 0.005f, 0.0002f);
-                terrainDirty |= sliderF("Cont. Weight", tp.continentalWeight, 0.0f, 1.0f, 0.05f);
                 terrainDirty |= sliderF("Eros. Freq", tp.erosionFreq, 0.0005f, 0.01f, 0.0005f);
-                terrainDirty |= sliderF("Eros. Weight", tp.erosionWeight, 0.0f, 1.0f, 0.05f);
                 terrainDirty |= sliderF("Peaks Freq", tp.peaksFreq, 0.002f, 0.03f, 0.002f);
-                terrainDirty |= sliderF("Peaks Weight", tp.peaksWeight, 0.0f, 1.0f, 0.05f);
 
                 py += 4;
                 DrawText("=== CLIMATE ===", panelX, py, 14, YELLOW);
