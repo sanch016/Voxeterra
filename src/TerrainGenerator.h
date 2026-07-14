@@ -9,7 +9,7 @@ inline float smoothstep(float edge0, float edge1, float x) {
     return t * t * (3.0f - 2.0f * t);
 }
 
-// ── Biome system ───────────────────────────────────────────────────────
+// ── Biome system (surface colouring only) ───────────────────────────────
 
 enum class BiomeType : int {
     DeepOcean, Ocean, Beach,
@@ -21,9 +21,6 @@ enum class BiomeType : int {
 
 struct BiomeDef {
     BiomeType type;
-    int    baseHeight;
-    float  heightScale;
-    float  hilliness;
     BlockType surfaceBlock;
     BlockType subBlock;
     BlockType shoreBlock;
@@ -32,20 +29,19 @@ struct BiomeDef {
 };
 
 inline const BiomeDef BIOME_DEFS[] = {
-    // type          baseH hScale hilliness surface  sub     shore    shW snow
-    {BiomeType::DeepOcean,   3, 0.3f, 0.4f, BlockType::Gravel, BlockType::Gravel, BlockType::Gravel, 0, 0.0f},
-    {BiomeType::Ocean,      18, 0.5f, 0.5f, BlockType::Gravel, BlockType::Gravel, BlockType::Sand,   5, 0.0f},
-    {BiomeType::Beach,      24, 0.4f, 0.5f, BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   3, 0.0f},
-    {BiomeType::Plains,     30, 0.7f, 0.8f, BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   3, 0.0f},
-    {BiomeType::Desert,     32, 0.8f, 1.0f, BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   2, 0.0f},
-    {BiomeType::Forest,     36, 1.0f, 1.2f, BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
-    {BiomeType::DarkForest, 38, 1.2f, 1.4f, BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
-    {BiomeType::Taiga,      34, 0.9f, 1.1f, BlockType::Grass,  BlockType::Dirt,   BlockType::Snow,   1, 0.4f},
-    {BiomeType::SnowyPlains,32, 0.7f, 0.6f, BlockType::Snow,   BlockType::Dirt,   BlockType::Snow,   2, 0.7f},
-    {BiomeType::Mountains,  55, 2.5f, 1.8f, BlockType::Stone,  BlockType::Stone,  BlockType::Gravel, 4, 0.6f},
-    {BiomeType::Swamp,      26, 0.4f, 0.4f, BlockType::Grass,  BlockType::Dirt,   BlockType::Clay,   4, 0.0f},
-    {BiomeType::Savanna,    30, 0.6f, 0.7f, BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
-    {BiomeType::Badlands,   42, 1.6f, 1.8f, BlockType::Gravel, BlockType::Sand,   BlockType::Gravel, 6, 0.0f},
+    {BiomeType::DeepOcean,   BlockType::Gravel, BlockType::Gravel, BlockType::Gravel, 0, 0.0f},
+    {BiomeType::Ocean,       BlockType::Gravel, BlockType::Gravel, BlockType::Sand,   5, 0.0f},
+    {BiomeType::Beach,       BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   3, 0.0f},
+    {BiomeType::Plains,      BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   3, 0.0f},
+    {BiomeType::Desert,      BlockType::Sand,   BlockType::Sand,   BlockType::Sand,   2, 0.0f},
+    {BiomeType::Forest,      BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
+    {BiomeType::DarkForest,  BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
+    {BiomeType::Taiga,       BlockType::Grass,  BlockType::Dirt,   BlockType::Snow,   1, 0.4f},
+    {BiomeType::SnowyPlains, BlockType::Snow,   BlockType::Dirt,   BlockType::Snow,   2, 0.7f},
+    {BiomeType::Mountains,   BlockType::Stone,  BlockType::Stone,  BlockType::Gravel, 4, 0.6f},
+    {BiomeType::Swamp,       BlockType::Grass,  BlockType::Dirt,   BlockType::Clay,   4, 0.0f},
+    {BiomeType::Savanna,     BlockType::Grass,  BlockType::Dirt,   BlockType::Sand,   2, 0.0f},
+    {BiomeType::Badlands,    BlockType::Gravel, BlockType::Sand,   BlockType::Gravel, 6, 0.0f},
 };
 
 static_assert(sizeof(BIOME_DEFS) / sizeof(BIOME_DEFS[0]) == (int)BiomeType::COUNT,
@@ -59,28 +55,26 @@ struct TerrainParams {
     int   bedrockDepth    = 2;
     int   dirtDepth       = 5;
 
-    float continentalFreq = 0.0006f;
+    float continentalFreq = 0.0005f;
     int   continentalOctaves = 5;
 
-    float erosionFreq    = 0.0012f;
+    float erosionFreq    = 0.0010f;
     int   erosionOctaves = 4;
 
-    float peaksFreq      = 0.003f;
+    float peaksFreq      = 0.0025f;
     int   peaksOctaves   = 4;
 
-    float tempFreq       = 0.0008f;
-    float moistFreq      = 0.0009f;
+    float tempFreq       = 0.0007f;
+    float moistFreq      = 0.0008f;
 
-    float detailFreq     = 0.02f;
-    float detailAmp      = 1.0f;
+    float detailFreq     = 0.015f;
+    float detailAmp      = 0.8f;
 
     float caveFreq       = 0.014f;
     float caveThreshold  = 0.55f;
     bool  cavesEnabled   = true;
 
     float oreFreq        = 0.07f;
-
-    float blendRadius    = 48.0f;
 };
 
 // ── Terrain generator ──────────────────────────────────────────────────
@@ -109,34 +103,9 @@ public:
         float moi = moisture(wx, wz);
         float det = detail(wx, wz);
 
-        float avgBase = 0, avgScale = 0, avgHill = 0;
-        float rad = m_params.blendRadius;
-
-        auto accum = [&](float sx, float sz) {
-            float scn = continentalness(sx, sz);
-            float stmp = temperature(sx, sz);
-            float smoi = moisture(sx, sz);
-            const auto& d = BIOME_DEFS[(int)getBiomeAt(stmp, smoi, scn)];
-            avgBase += static_cast<float>(d.baseHeight);
-            avgScale += d.heightScale;
-            avgHill += d.hilliness;
-        };
-
-        accum(wx, wz);
-        accum(wx + rad, wz);
-        accum(wx - rad, wz);
-        accum(wx, wz + rad);
-        accum(wx, wz - rad);
-
-        float inv = 1.0f / 5.0f;
-        float bh = avgBase * inv;
-        float hs = avgScale * inv;
-        float hl = avgHill * inv;
-
-        float hill01 = cn * 0.4f + (1.0f - er) * 0.3f + pk * 0.3f;
-        hill01 = std::clamp(hill01, 0.0f, 1.0f);
-
-        float h = bh + hill01 * hs * 25.0f * hl + det * m_params.detailAmp;
+        float bh = baseHeight(cn, er, tmp, moi);
+        float hs = hillScale(cn, er, tmp, moi);
+        float h  = bh + hs * pk + det * m_params.detailAmp;
 
         int height = std::max(1, static_cast<int>(std::round(h)));
         return { height, tmp, moi, cn, er };
@@ -272,6 +241,47 @@ private:
         n.SetFractalType(fractal);
         n.SetFractalOctaves(octaves);
         n.SetFrequency(freq);
+    }
+
+    float baseHeight(float cn, float er, float tmp, float moi) const {
+        struct Point { float cn, h; };
+        static const Point pts[] = {
+            {0.00f,  3.f},
+            {0.15f,  5.f},
+            {0.28f, 18.f},
+            {0.35f, 25.f},
+            {0.42f, 32.f},
+            {0.55f, 42.f},
+            {0.70f, 58.f},
+            {0.85f, 78.f},
+            {1.00f, 95.f},
+        };
+        constexpr int n = sizeof(pts) / sizeof(pts[0]);
+
+        if (cn <= pts[0].cn) return pts[0].h;
+        if (cn >= pts[n - 1].cn) return pts[n - 1].h;
+
+        float h = pts[n - 1].h;
+        for (int i = 0; i < n - 1; ++i) {
+            if (cn >= pts[i].cn && cn <= pts[i + 1].cn) {
+                float st = smoothstep(pts[i].cn, pts[i + 1].cn, cn);
+                h = pts[i].h + st * (pts[i + 1].h - pts[i].h);
+                break;
+            }
+        }
+
+        h *= 1.0f - 0.10f * er;
+        h *= 1.0f + 0.08f * (0.5f - tmp);
+        h *= 1.0f + 0.06f * (moi - 0.5f);
+        return h;
+    }
+
+    float hillScale(float cn, float er, float tmp, float moi) const {
+        float s = smoothstep(0.28f, 0.65f, cn) * 60.0f;
+        s *= 1.0f - 0.50f * er;
+        s *= 1.0f + 0.20f * (0.5f - tmp);
+        s *= 1.0f - 0.20f * moi;
+        return s;
     }
 
     float continentalness(float x, float z) const {
