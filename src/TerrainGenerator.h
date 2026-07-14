@@ -117,8 +117,7 @@ public:
         int sea = m_params.seaLevel;
 
         if (wy > surface) {
-            if (wy <= sea)                         return BlockType::Water;
-            if (wy == sea + 1 && surface < sea - 1) return BlockType::Water;
+            if (wy <= sea) return BlockType::Water;
             return BlockType::Air;
         }
 
@@ -249,13 +248,13 @@ private:
         static const Point pts[] = {
             {0.00f,  3.f},
             {0.15f,  5.f},
-            {0.28f, 14.f},
-            {0.35f, 20.f},
-            {0.42f, 27.f},
-            {0.55f, 33.f},
-            {0.70f, 46.f},
-            {0.85f, 56.f},
-            {1.00f, 65.f},
+            {0.28f, 17.f},
+            {0.35f, 24.f},
+            {0.42f, 32.f},
+            {0.55f, 42.f},
+            {0.70f, 55.f},
+            {0.85f, 72.f},
+            {1.00f, 85.f},
         };
         constexpr int n = sizeof(pts) / sizeof(pts[0]);
 
@@ -266,7 +265,7 @@ private:
             if (cn >= pts[i].cn && cn <= pts[i + 1].cn) {
                 float st = smoothstep(pts[i].cn, pts[i + 1].cn, cn);
                 float h = pts[i].h + st * (pts[i + 1].h - pts[i].h);
-                h *= (1.0f - 0.12f * er);
+                h *= (1.0f - 0.08f * er);
                 return h;
             }
         }
@@ -274,9 +273,9 @@ private:
     }
 
     float hillScale(float cn, float er) const {
-        float cnHill = smoothstep(cn, 0.28f, 0.65f);
-        float erEffect = 1.0f - 0.7f * er;
-        return cnHill * erEffect * 30.0f;
+        float cnHill = smoothstep(0.28f, 0.65f, cn);
+        float erEffect = 1.0f - 0.55f * er;
+        return cnHill * erEffect * 55.0f;
     }
 
     float continentalness(float x, float z) const {
