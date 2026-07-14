@@ -28,8 +28,8 @@ private:
     float m_yaw   = -90.0f;
     float m_pitch = 0.0f;
 
-    float m_speed       = 4.0f * BLOCK_SIZE;
-    float m_sprintSpeed = 12.0f * BLOCK_SIZE;
+    float m_speed       = 4.0f;
+    float m_sprintSpeed = 12.0f;
     float m_sensitivity = 0.1f;
     float m_fov         = 60.0f;
     float m_nearPlane   = 0.1f;

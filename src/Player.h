@@ -31,14 +31,14 @@ private:
     glm::vec3 m_position;
     glm::vec3 m_velocity{0.0f};
 
-    float m_width       = 0.6f * BLOCK_SIZE;
-    float m_height      = 1.8f * BLOCK_SIZE;
-    float m_eyeHeight   = 1.62f * BLOCK_SIZE;
+    float m_width       = 0.6f;
+    float m_height      = 1.8f;
+    float m_eyeHeight   = 1.62f;
 
-    float m_moveSpeed    = 4.5f * BLOCK_SIZE;
-    float m_sprintSpeed  = 10.0f * BLOCK_SIZE;
-    float m_jumpVelocity = 7.5f * BLOCK_SIZE;
-    float m_gravity      = 22.0f * BLOCK_SIZE;
+    float m_moveSpeed    = 4.5f;
+    float m_sprintSpeed  = 10.0f;
+    float m_jumpVelocity = 7.5f;
+    float m_gravity      = 22.0f;
 
     bool m_grounded = false;
     bool m_flying = true;
