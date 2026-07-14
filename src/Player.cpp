@@ -82,8 +82,19 @@ void Player::update(float deltaTime, const World& world) {
         m_velocity.y -= m_gravity * deltaTime;
 
         glm::vec3 oldPos = m_position;
+
+        // X axis with step-up
         m_position.x += m_velocity.x * deltaTime;
-        resolveCollisionsAxis(world, 0);
+        if (hasCollision(world, getAABB())) {
+            float savedY = m_position.y;
+            m_position.y += BLOCK_SIZE;
+            if (hasCollision(world, getAABB())) {
+                m_position.y = savedY;
+                resolveCollisionsAxis(world, 0);
+            } else {
+                m_velocity.y = 0.0f;
+            }
+        }
 
         m_position.y += m_velocity.y * deltaTime;
         resolveCollisionsAxis(world, 1);
@@ -91,8 +102,18 @@ void Player::update(float deltaTime, const World& world) {
             m_grounded = true;
         }
 
+        // Z axis with step-up
         m_position.z += m_velocity.z * deltaTime;
-        resolveCollisionsAxis(world, 2);
+        if (hasCollision(world, getAABB())) {
+            float savedY = m_position.y;
+            m_position.y += BLOCK_SIZE;
+            if (hasCollision(world, getAABB())) {
+                m_position.y = savedY;
+                resolveCollisionsAxis(world, 2);
+            } else {
+                m_velocity.y = 0.0f;
+            }
+        }
 
         if (m_grounded && IsKeyPressed(KEY_SPACE)) {
             m_velocity.y = m_jumpVelocity;
